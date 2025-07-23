@@ -30,6 +30,9 @@
 #include "Spell.h"
 #include "SocialMgr.h"
 #include "Language.h"
+#include "Map.h"
+#include "TradeData.h"
+#include "TransactionLog.h"
 
 void WorldSession::SendTradeStatus(TradeStatus status)
 {
@@ -69,10 +72,12 @@ void WorldSession::SendTradeStatus(TradeStatus status)
 
 void WorldSession::HandleIgnoreTradeOpcode(WorldPacket& /*recvPacket*/)
 {
+    _player->TradeCancel(true, TRADE_STATUS_IGNORE_YOU);
 }
 
 void WorldSession::HandleBusyTradeOpcode(WorldPacket& /*recvPacket*/)
 {
+    _player->TradeCancel(true, TRADE_STATUS_BUSY);
 }
 
 void WorldSession::SendUpdateTrade(bool trader_state /*= true*/)
@@ -156,6 +161,14 @@ void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
 
                 // store
                 trader->MoveItemToInventory(traderDst, myItems[i], true, true);
+
+                // If saving is disabled for player who receives the item, it must be deleted from db, or it enables duping.
+                if (trader->IsSavingDisabled())
+                {
+                    sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Item guid %u traded to character %u with disabled saving. Deleting from DB.", myItems[i]->GetGUIDLow(), trader->GetGUIDLow());
+                    myItems[i]->DeleteFromInventoryDB();
+                    myItems[i]->DeleteAllFromDB();
+                }
             }
 
             if (hisItems[i])
@@ -173,6 +186,14 @@ void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
 
                 // store
                 _player->MoveItemToInventory(playerDst, hisItems[i], true, true);
+
+                // If saving is disabled for player who receives the item, it must be deleted from db, or it enables duping.
+                if (_player->IsSavingDisabled())
+                {
+                    sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Item guid %u traded to character %u with disabled saving. Deleting from DB.", hisItems[i]->GetGUIDLow(), _player->GetGUIDLow());
+                    hisItems[i]->DeleteFromInventoryDB();
+                    hisItems[i]->DeleteAllFromDB();
+                }
             }
         }
         else
@@ -436,6 +457,10 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& recvPacket)
             my_trade->SetAccepted(false);
             his_trade->SetAccepted(false);
             his_trade->SetLastModificationTime(time(nullptr));
+            if (my_spell)
+                my_spell->Delete();
+            if (his_spell)
+                his_spell->Delete();
             return;
         }
         else if (!hisCanCompleteTrade)
@@ -447,6 +472,10 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& recvPacket)
             my_trade->SetAccepted(false);
             his_trade->SetAccepted(false);
             his_trade->SetLastModificationTime(time(nullptr));
+            if (my_spell)
+                my_spell->Delete();
+            if (his_spell)
+                his_spell->Delete();
             return;
         }
 
@@ -540,12 +569,12 @@ void WorldSession::HandleBeginTradeOpcode(WorldPacket& /*recvPacket*/)
     SendTradeStatus(TRADE_STATUS_OPEN_WINDOW);
 }
 
-void WorldSession::SendCancelTrade()
+void WorldSession::SendCancelTrade(TradeStatus status)
 {
     if (m_playerRecentlyLogout)
         return;
 
-    SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
+    SendTradeStatus(status);
 }
 
 void WorldSession::HandleCancelTradeOpcode(WorldPacket& /*recvPacket*/)
@@ -569,7 +598,7 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    if (GetPlayer()->HasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED))
+    if (GetPlayer()->HasUnitState(UNIT_STATE_STUNNED | UNIT_STATE_PENDING_STUNNED))
     {
         SendTradeStatus(TRADE_STATUS_YOU_STUNNED);
         return;
@@ -613,7 +642,7 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    if (pOther->HasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED))
+    if (pOther->HasUnitState(UNIT_STATE_STUNNED | UNIT_STATE_PENDING_STUNNED))
     {
         SendTradeStatus(TRADE_STATUS_TARGET_STUNNED);
         return;
@@ -622,12 +651,6 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
     if (pOther->GetSession()->IsLogingOut())
     {
         SendTradeStatus(TRADE_STATUS_TARGET_LOGOUT);
-        return;
-    }
-
-    if (pOther->GetSocial()->HasIgnore(GetPlayer()->GetObjectGuid()))
-    {
-        SendTradeStatus(TRADE_STATUS_IGNORE_YOU);
         return;
     }
 
@@ -640,6 +663,12 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
     if (_player->GetDistance3dToCenter(pOther) > TRADE_DISTANCE)
     {
         SendTradeStatus(TRADE_STATUS_TARGET_TO_FAR);
+        return;
+    }
+
+    if (HasTrialRestrictions() || pOther->GetSession()->HasTrialRestrictions())
+    {
+        SendTradeStatus(TRADE_STATUS_TRIAL_ACCOUNT);
         return;
     }
 

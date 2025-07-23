@@ -22,6 +22,8 @@
 #ifndef DBCENUMS_H
 #define DBCENUMS_H
 
+#include "Platform/Define.h"
+
 // Client expected level limitation, like as used in DBC item max levels for "until max player level"
 // use as default max player level, must be fit max level for used client
 // also see MAX_LEVEL and PLAYER_STRONG_MAX_LEVEL define
@@ -35,6 +37,9 @@
 // also see MAX_LEVEL and GT_MAX_LEVEL define
 #define PLAYER_STRONG_MAX_LEVEL 255
 
+// Max level for trial accounts.
+#define TRIAL_MAX_LEVEL 20
+
 // Max creature level in vanilla (included some bosses and elite) (no cls data above this level)
 #define CREATURE_MAX_LEVEL 63
 
@@ -47,16 +52,16 @@ enum AreaTeams
 
 enum AreaFlags
 {
-    AREA_FLAG_SNOW                  = 0x00000001,           // snow (only Dun Morogh, Naxxramas, Razorfen Downs and Winterspring)
-    AREA_FLAG_UNK1                  = 0x00000002,           // unknown, (only Naxxramas and Razorfen Downs)
+    AREA_FLAG_SNOW                  = 0x00000001,           // Has Breath Particles (only Dun Morogh, Naxxramas, Razorfen Downs and Winterspring)
+    AREA_FLAG_UNK1                  = 0x00000002,           // Override Parent Breath Particles (only Naxxramas and Razorfen Downs)
     AREA_FLAG_UNK2                  = 0x00000004,           // Only used on development map
-    AREA_FLAG_SLAVE_CAPITAL         = 0x00000008,           // slave capital city flag?
-    AREA_FLAG_UNK3                  = 0x00000010,           // unknown
-    AREA_FLAG_SLAVE_CAPITAL2        = 0x00000020,           // slave capital city flag?
-    AREA_FLAG_DUEL                  = 0x00000040,           // zones where duels allowed
-    AREA_FLAG_ARENA                 = 0x00000080,           // arena, both instanced and world arenas
-    AREA_FLAG_CAPITAL               = 0x00000100,           // main capital city flag
-    AREA_FLAG_CITY                  = 0x00000200,           // only for one zone named "City" (where it located?)
+    AREA_FLAG_SLAVE_CAPITAL         = 0x00000008,           // Allow trade channel
+    AREA_FLAG_UNK3                  = 0x00000010,           // Enemies PvP flagged
+    AREA_FLAG_SLAVE_CAPITAL2        = 0x00000020,           // Allow resting
+    AREA_FLAG_DUEL                  = 0x00000040,           // Zones where duels allowed
+    AREA_FLAG_ARENA                 = 0x00000080,           // Arena, both instanced and world arenas
+    AREA_FLAG_CAPITAL               = 0x00000100,           // Main capital city flag
+    AREA_FLAG_CITY                  = 0x00000200,           // Highest areaid with this flag will be name used on chat channels (e.g. Trade - City)
 };
 
 enum FactionTemplateFlags
@@ -76,6 +81,40 @@ enum FactionTemplateFlags
     FACTION_TEMPLATE_FLAG_ATTACK_PVP_ACTIVE_PLAYERS = 0x00001000,   // faction will attack players that were involved in PvP combat
 };
 
+static char const* FactionTemplateFlagToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case FACTION_TEMPLATE_RESPOND_TO_CALL_FOR_HELP:
+            return "Respond To Call For Help";
+        case FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_LOW_PRIO:
+            return "Broadcast To Enemies (Low Priority)";
+        case FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_MED_PRIO:
+            return "Broadcast To Enemies (Medium Priority)";
+        case FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_HIG_PRIO:
+            return "Broadcast To Enemies (High Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_LOW_PRIO:
+            return "Search For Enemies (Low Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_MED_PRIO:
+            return "Search For Enemies (Medium Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_HIG_PRIO:
+            return "Search For Enemies (High Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_LOW_PRIO:
+            return "Search For Friends (Low Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_MED_PRIO:
+            return "Search For Friends (Medium Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_HIG_PRIO:
+            return "Search For Friends (High Priority)";
+        case FACTION_TEMPLATE_FLEE_FROM_CALL_FOR_HELP:
+            return "Flee From Call For Help";
+        case FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS:
+            return "Assist Players";
+        case FACTION_TEMPLATE_FLAG_ATTACK_PVP_ACTIVE_PLAYERS:
+            return "Attack PvP Active Players";
+    }
+    return "UNKNOWN";
+}
+
 enum FactionMasks
 {
     FACTION_MASK_PLAYER   = 1,                              // any player
@@ -84,6 +123,22 @@ enum FactionMasks
     FACTION_MASK_MONSTER  = 8                               // aggressive creature from monster team
     // if none flags set then non-aggressive creature
 };
+
+static char const* FactionMaskToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case FACTION_MASK_PLAYER:
+            return "Player";
+        case FACTION_MASK_ALLIANCE:
+            return "Alliance";
+        case FACTION_MASK_HORDE:
+            return "Horde";
+        case FACTION_MASK_MONSTER:
+            return "Monster";
+    }
+    return "UNKNOWN";
+}
 
 enum MapTypes
 {

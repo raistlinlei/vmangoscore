@@ -3,6 +3,8 @@
 #include "SpellAuraDefines.h"
 #include "SpellMgr.h"
 #include "Spell.h"
+#include "ScriptMgr.h"
+#include "TradeData.h"
 
 using namespace Spells;
 
@@ -431,7 +433,7 @@ WeaponAttackType SpellEntry::GetWeaponAttackType() const
     switch (DmgClass)
     {
         case SPELL_DAMAGE_CLASS_MELEE:
-            if (HasAttribute(SPELL_ATTR_EX3_REQ_OFFHAND))
+            if (HasAttribute(SPELL_ATTR_EX3_REQUIRES_OFFHAND_WEAPON))
                 return OFF_ATTACK;
             else
                 return BASE_ATTACK;
@@ -714,7 +716,7 @@ int32 SpellEntry::GetMaxDuration() const
     return (du->Duration[2] == -1) ? -1 : abs(du->Duration[2]);
 }
 
-int32 SpellEntry::CalculateDuration(WorldObject const* caster) const
+int32 SpellEntry::CalculateDuration(WorldObject const* caster, Unit const* target, AuraScript* auraScript) const
 {
     int32 duration = GetDuration();
 
@@ -725,6 +727,9 @@ int32 SpellEntry::CalculateDuration(WorldObject const* caster) const
         if (duration != maxduration)
             if (Player const* pPlayer = caster->ToPlayer())
                 duration += int32((maxduration - duration) * pPlayer->GetComboPoints() / 5);
+
+        if (auraScript)
+            duration = auraScript->OnDurationCalculate(caster, target, duration);
 
         if (Unit const* pUnit = caster->ToUnit())
         {
@@ -737,6 +742,8 @@ int32 SpellEntry::CalculateDuration(WorldObject const* caster) const
             }
         }
     }
+    else if (auraScript)
+        duration = auraScript->OnDurationCalculate(caster, target, duration);
 
     return duration;
 }
@@ -765,6 +772,19 @@ uint16 SpellEntry::GetAuraMaxTicks() const
     }
 
     return 6;
+}
+
+uint32 SpellEntry::GetRank() const
+{
+    if (Rank[0].length() > 5 &&
+        Rank[0][0] == 'R' &&
+        Rank[0][1] == 'a' &&
+        Rank[0][2] == 'n' &&
+        Rank[0][3] == 'k' &&
+        Rank[0][4] == ' ')
+        return strtoul(Rank[0].c_str() + 5, NULL, 10);
+
+    return 0;
 }
 
 bool SpellEntry::IsPositiveSpell(WorldObject const* caster, WorldObject const* victim) const
@@ -935,7 +955,7 @@ bool SpellEntry::IsPositiveEffect(SpellEffectIndex effIndex, WorldObject const* 
                             SpellFamilyName == SPELLFAMILY_GENERIC)
                         return false;
                     // but not this if this first effect (don't found better check)
-                    if (Attributes & 0x4000000 && effIndex == EFFECT_INDEX_0)
+                    if (Attributes & SPELL_ATTR_AURA_IS_DEBUFF && effIndex == EFFECT_INDEX_0)
                         return false;
                     break;
                 case SPELL_AURA_MOD_SCALE:
@@ -1079,4 +1099,19 @@ bool SpellEntry::IsTargetInRange(WorldObject const* pCaster, WorldObject const* 
     float dist = pCaster->GetCombatDistance(pTarget);
 
     return dist < max_range && dist >= min_range;
+}
+
+bool SpellEntry::HasAuraOrTriggersAnotherSpellWithAura(AuraType aura) const
+{
+    for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
+    {
+        if (EffectApplyAuraName[i] == aura)
+            return true;
+
+        if (Effect[i] == SPELL_EFFECT_TRIGGER_SPELL)
+            if (SpellEntry const* pTriggeredSpell = sSpellMgr.GetSpellEntry(EffectTriggerSpell[i]))
+                if (pTriggeredSpell->HasAura(aura))
+                    return true;
+    }
+    return false;
 }
